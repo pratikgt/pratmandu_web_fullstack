@@ -8,10 +8,23 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   const fetchMe = async () => {
+    const token = localStorage.getItem("token");
+
+    // token chaina bhane /me call nagarne
+    if (!token) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await api.get("/auth/me");
       setUser(res.data?.user || res.data || null);
-    } catch {
+    } catch (err) {
+      // token invalid/expired bhaye clear garne
+      if (err?.response?.status === 401) {
+        localStorage.removeItem("token");
+      }
       setUser(null);
     } finally {
       setLoading(false);
@@ -20,6 +33,7 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     fetchMe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const login = async ({ email, password }) => {
@@ -54,6 +68,4 @@ export const AuthProvider = ({ children }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export const useAuth = () => {
-  return useContext(AuthContext);
-};
+export const useAuth = () => useContext(AuthContext);
