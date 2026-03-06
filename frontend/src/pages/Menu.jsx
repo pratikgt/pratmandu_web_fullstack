@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import ProductCard from "../components/ProductCard";
-import api from "../api/axios";
 
 import rest1 from "../assets/rest1.jpg";
 import rest2 from "../assets/rest2.jpg";
@@ -10,270 +8,246 @@ import dishChowmein from "../assets/dish_chowmein.jpg";
 import dishDalbhat from "../assets/dish_dalbhat.jpg";
 import dishSekuwa from "../assets/dish_sekuwa.jpg";
 
-function pickDishImg(cat) {
-  const c = String(cat || "").toLowerCase();
-  if (c.includes("momo")) return dishMomo;
-  if (c.includes("chow")) return dishChowmein;
-  if (c.includes("dal")) return dishDalbhat;
-  if (c.includes("sekuwa")) return dishSekuwa;
-  return dishMomo;
-}
+const mockRestaurants = [
+  {
+    _id: "r1",
+    name: "Himalayan Momo House",
+    location: "Kathmandu",
+    rating: 4.7,
+    coverImage: rest1,
+    tags: ["Momo", "Fast", "Budget"],
+  },
+  {
+    _id: "r2",
+    name: "Newa Kitchen",
+    location: "Patan",
+    rating: 4.5,
+    coverImage: rest2,
+    tags: ["Newari", "Popular", "Spicy"],
+  },
+];
 
-function pickRestBanner(idx, coverImage) {
-  if (coverImage) return coverImage;
-  return idx % 2 === 0 ? rest1 : rest2;
+const mockMenuItems = [
+  {
+    _id: "m1",
+    restaurantId: "r1",
+    name: "Steam Momo",
+    category: "Momo",
+    price: 180,
+    image: dishMomo,
+    rating: 4.8,
+  },
+  {
+    _id: "m2",
+    restaurantId: "r1",
+    name: "Chicken Chowmein",
+    category: "Chowmein",
+    price: 220,
+    image: dishChowmein,
+    rating: 4.6,
+  },
+  {
+    _id: "m3",
+    restaurantId: "r2",
+    name: "Dal Bhat Set",
+    category: "Dal Bhat",
+    price: 280,
+    image: dishDalbhat,
+    rating: 4.7,
+  },
+  {
+    _id: "m4",
+    restaurantId: "r2",
+    name: "Buff Sekuwa",
+    category: "Sekuwa",
+    price: 320,
+    image: dishSekuwa,
+    rating: 4.9,
+  },
+];
+
+function fmtRs(n) {
+  return `Rs. ${Number(n || 0)}`;
 }
 
 export default function Menu() {
   const [restaurants, setRestaurants] = useState([]);
-  const [activeRestaurantId, setActiveRestaurantId] = useState("");
-  const [menuItems, setMenuItems] = useState([]);
-
-  const [search, setSearch] = useState("");
-  const [sort, setSort] = useState("popular");
-
-  const [loadingR, setLoadingR] = useState(false);
-  const [loadingM, setLoadingM] = useState(false);
-  const [err, setErr] = useState("");
+  const [selectedRestaurant, setSelectedRestaurant] = useState(null);
+  const [dishSearch, setDishSearch] = useState("");
+  const [sortBy, setSortBy] = useState("popular");
 
   useEffect(() => {
-    let mounted = true;
-
-    const loadRestaurants = async () => {
-      try {
-        setErr("");
-        setLoadingR(true);
-        const { data } = await api.get("/restaurants");
-
-        const list = Array.isArray(data?.restaurants) ? data.restaurants : [];
-        const mapped = list.map((r, idx) => ({
-          _id: r._id,
-          name: r.name,
-          rating: typeof r.rating === "number" ? r.rating : 4.5,
-          city: r.location || r.city || "Kathmandu",
-          banner: pickRestBanner(idx, r.coverImage),
-          tags: Array.isArray(r.tags) ? r.tags : [],
-        }));
-
-        if (!mounted) return;
-        setRestaurants(mapped);
-        if (mapped[0]?._id) setActiveRestaurantId(mapped[0]._id);
-      } catch (e) {
-        if (!mounted) return;
-        setErr(e?.response?.data?.message || "Failed to load restaurants");
-      } finally {
-        if (!mounted) return;
-        setLoadingR(false);
-      }
-    };
-
-    loadRestaurants();
-
-    return () => {
-      mounted = false;
-    };
+    setRestaurants(mockRestaurants);
+    setSelectedRestaurant(mockRestaurants[0]);
   }, []);
 
-  useEffect(() => {
-    let mounted = true;
+  const filteredDishes = useMemo(() => {
+    if (!selectedRestaurant) return [];
 
-    const loadMenu = async () => {
-      if (!activeRestaurantId) return;
+    let items = mockMenuItems.filter(
+      (item) => item.restaurantId === selectedRestaurant._id
+    );
 
-      try {
-        setErr("");
-        setLoadingM(true);
-
-        const { data } = await api.get(`/menu?restaurantId=${activeRestaurantId}`);
-        const list = Array.isArray(data?.menu) ? data.menu : [];
-
-        const mapped = list.map((m) => ({
-          _id: m._id,
-          name: m.name,
-          price: Number(m.price ?? 0),
-          rating: typeof m.rating === "number" ? m.rating : undefined,
-          category: m.category || "Food",
-          image: m.image || pickDishImg(m.category),
-          restaurantId: m.restaurantId || activeRestaurantId,
-        }));
-
-        if (!mounted) return;
-        setMenuItems(mapped);
-      } catch (e) {
-        if (!mounted) return;
-        setErr(e?.response?.data?.message || "Failed to load menu");
-        setMenuItems([]);
-      } finally {
-        if (!mounted) return;
-        setLoadingM(false);
-      }
-    };
-
-    loadMenu();
-
-    return () => {
-      mounted = false;
-    };
-  }, [activeRestaurantId]);
-
-  const activeRestaurant = restaurants.find((r) => r._id === activeRestaurantId);
-
-  const dishes = useMemo(() => {
-    let list = [...menuItems];
-
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      list = list.filter(
-        (d) =>
-          String(d.name).toLowerCase().includes(q) ||
-          String(d.category).toLowerCase().includes(q)
+    if (dishSearch.trim()) {
+      const q = dishSearch.toLowerCase();
+      items = items.filter(
+        (item) =>
+          item.name.toLowerCase().includes(q) ||
+          item.category.toLowerCase().includes(q)
       );
     }
 
-    if (sort === "priceLow") list.sort((a, b) => a.price - b.price);
-    if (sort === "priceHigh") list.sort((a, b) => b.price - a.price);
-    if (sort === "rating") list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    if (sortBy === "priceLow") {
+      items = [...items].sort((a, b) => a.price - b.price);
+    } else if (sortBy === "priceHigh") {
+      items = [...items].sort((a, b) => b.price - a.price);
+    } else {
+      items = [...items].sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    }
 
-    return list;
-  }, [menuItems, search, sort]);
+    return items;
+  }, [selectedRestaurant, dishSearch, sortBy]);
 
   return (
-    <div className="page">
-      <main className="container pagepad">
-        <div className="menuTop">
-          <h2 className="section__title" style={{ margin: 0 }}>
-            Menu
-          </h2>
+    <main className="min-h-screen bg-[#f7f7f7]">
+      <section className="mx-auto max-w-6xl px-4 py-8">
+        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <h1 className="text-2xl font-extrabold text-[#1f2937]">Menu</h1>
 
-          <div className="menuControls">
-            <div className="menuSearch">
-              <span className="menuSearch__icon">⌕</span>
+          <div className="flex flex-col gap-3 md:flex-row">
+            <div className="flex h-12 w-full items-center rounded-xl border border-gray-200 bg-white px-4 shadow-sm md:w-[300px]">
+              <span className="mr-2 text-sm text-gray-400">⌕</span>
               <input
-                className="menuSearch__input"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                type="text"
                 placeholder="Search dishes..."
+                value={dishSearch}
+                onChange={(e) => setDishSearch(e.target.value)}
+                className="w-full bg-transparent text-sm outline-none"
               />
             </div>
 
             <select
-              className="menuSelect"
-              value={sort}
-              onChange={(e) => setSort(e.target.value)}
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="h-12 rounded-xl border border-gray-200 bg-white px-4 text-sm font-semibold shadow-sm outline-none"
             >
               <option value="popular">Sort: Popular</option>
-              <option value="rating">Sort: Rating</option>
-              <option value="priceLow">Sort: Price (Low)</option>
-              <option value="priceHigh">Sort: Price (High)</option>
+              <option value="priceLow">Price: Low to High</option>
+              <option value="priceHigh">Price: High to Low</option>
             </select>
           </div>
         </div>
 
-        {err ? (
-          <div className="emptyBox" style={{ borderColor: "#ef4444", color: "#b91c1c" }}>
-            {err}
+        <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
+          <div className="rounded-2xl bg-white p-4 shadow-sm">
+            <h2 className="mb-4 text-lg font-bold text-[#1f2937]">Restaurants</h2>
+
+            <div className="space-y-3">
+              {restaurants.map((restaurant) => {
+                const active = selectedRestaurant?._id === restaurant._id;
+
+                return (
+                  <button
+                    key={restaurant._id}
+                    type="button"
+                    onClick={() => setSelectedRestaurant(restaurant)}
+                    className={`w-full rounded-2xl border p-3 text-left transition ${
+                      active
+                        ? "border-[#e1251b] bg-[#fff5f4]"
+                        : "border-gray-200 bg-white hover:border-[#e1251b]/40"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={restaurant.coverImage}
+                        alt={restaurant.name}
+                        className="h-16 w-16 rounded-xl object-cover"
+                      />
+
+                      <div className="min-w-0 flex-1">
+                        <h3 className="truncate text-sm font-bold text-[#1f2937]">
+                          {restaurant.name}
+                        </h3>
+                        <p className="text-xs text-gray-500">{restaurant.location}</p>
+                        <p className="mt-1 text-xs font-semibold text-[#e1251b]">
+                          {restaurant.rating}★
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        ) : null}
 
-        <div className="menuLayout">
-          <aside className="menuSide">
-            <div className="menuSide__title">Restaurants</div>
+          <div className="rounded-2xl bg-white p-4 shadow-sm">
+            <div className="mb-5 rounded-xl border border-gray-200 bg-[#fafafa] p-4">
+              <h2 className="text-lg font-bold text-[#1f2937]">
+                {selectedRestaurant
+                  ? selectedRestaurant.name
+                  : "Select a restaurant"}
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                {selectedRestaurant
+                  ? `${selectedRestaurant.location} • Rating ${selectedRestaurant.rating}`
+                  : "Choose a restaurant from the left side."}
+              </p>
+            </div>
 
-            {loadingR ? (
-              <div className="emptyBox">Loading restaurants...</div>
-            ) : restaurants.length === 0 ? (
-              <div className="emptyBox">No restaurants found.</div>
-            ) : (
-              <div className="restList">
-                {restaurants.map((r) => {
-                  const active = r._id === activeRestaurantId;
+            <h3 className="mb-4 text-lg font-bold text-[#1f2937]">Dishes</h3>
 
-                  return (
-                    <button
-                      key={r._id}
-                      className={active ? "restItem active" : "restItem"}
-                      onClick={() => setActiveRestaurantId(r._id)}
-                      type="button"
-                    >
-                      <div className="restItem__thumb">
-                        <img src={r.banner} alt={r.name} />
-                      </div>
-
-                      <div className="restItem__info">
-                        <div className="restItem__name">{r.name}</div>
-
-                        <div className="restItem__meta">
-                          <span className="restItem__star">★</span>
-                          <span>{r.rating}</span>
-                          <span className="restItem__dot">•</span>
-                          <span>{r.city}</span>
-                        </div>
-
-                        <div className="restItem__tags">
-                          {(r.tags || []).slice(0, 3).map((t) => (
-                            <span key={t} className="pill">
-                              {t}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
+            {filteredDishes.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-gray-200 bg-[#fafafa] p-5 text-center text-sm text-gray-500">
+                No dishes found.
               </div>
-            )}
-          </aside>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {filteredDishes.map((item) => (
+                  <div
+                    key={item._id}
+                    className="overflow-hidden rounded-2xl border border-gray-200 bg-white"
+                  >
+                    <img
+                      src={item.image}
+                      alt={item.name}
+                      className="h-32 w-full object-cover"
+                    />
 
-          <section className="menuMain">
-            {activeRestaurant ? (
-              <div className="menuBanner">
-                <img
-                  className="menuBanner__img"
-                  src={activeRestaurant.banner}
-                  alt={activeRestaurant.name}
-                />
+                    <div className="p-4">
+                      <div className="mb-2 flex items-start justify-between gap-2">
+                        <div>
+                          <h4 className="text-sm font-bold text-[#1f2937]">
+                            {item.name}
+                          </h4>
+                          <p className="text-xs text-gray-500">{item.category}</p>
+                        </div>
 
-                <div className="menuBanner__overlay" />
+                        <span className="rounded-full bg-[#fff1f0] px-2 py-1 text-[11px] font-bold text-[#e1251b]">
+                          {item.rating}★
+                        </span>
+                      </div>
 
-                <div className="menuBanner__content">
-                  <div className="menuBanner__name">{activeRestaurant.name}</div>
+                      <div className="mb-3 flex items-center justify-between">
+                        <span className="text-base font-extrabold text-[#e1251b]">
+                          {fmtRs(item.price)}
+                        </span>
+                        <span className="text-xs text-green-600">Available</span>
+                      </div>
 
-                  <div className="menuBanner__meta">
-                    <span className="menuBanner__star">★</span>
-                    <span>{activeRestaurant.rating}</span>
-                    <span className="menuBanner__dot">•</span>
-                    <span>{activeRestaurant.city}</span>
+                      <button
+                        type="button"
+                        className="w-full rounded-lg bg-[#e1251b] px-3 py-2 text-sm font-semibold text-white transition hover:opacity-95"
+                      >
+                        Add to Cart
+                      </button>
+                    </div>
                   </div>
-
-                  <div className="menuBanner__note">Pick your dish and add to cart.</div>
-                </div>
-              </div>
-            ) : (
-              <div className="emptyBox">Select a restaurant to view menu.</div>
-            )}
-
-            <div className="menuSectionTitle">Dishes</div>
-
-            {loadingM ? (
-              <div className="emptyBox">Loading dishes...</div>
-            ) : dishes.length === 0 ? (
-              <div className="emptyBox">No dishes found. Try different search.</div>
-            ) : (
-              <div className="grid grid--4 menuGrid">
-                {dishes.map((p) => (
-                  <ProductCard
-                    key={p._id}
-                    item={{
-                      ...p,
-                      restaurantName: activeRestaurant?.name,
-                    }}
-                  />
                 ))}
               </div>
             )}
-          </section>
+          </div>
         </div>
-      </main>
-    </div>
+      </section>
+    </main>
   );
 }
